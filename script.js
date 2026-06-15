@@ -46,44 +46,57 @@ map.addLayer(cluster);
 establecerPosicionPorRol(PLAZA_10_FEBRERO_VECINO, "🏠 Vecino (Plaza 10 de Febrero)");
 ocultarBotonesAdmin();
 
-// ¡ACTIVAR ESCUCHA EN TIEMPO REAL DESDE LA NUBE!
-escucharPuntosEnLaNube();
+// ¡ACTIVAR LA SINCRONIZACIÓN AUTOMÁTICA EN TIEMPO REAL!
+// Carga los puntos inmediatamente y luego revisa internet cada 3 segundos
+cargarPuntosDesdeLaNube();
+setInterval(cargarPuntosDesdeLaNube, 30000);
 
 
 /* =====================================================
    CONEXIÓN CON LA BASE DE DATOS (FIREBASE)
 ===================================================== */
 
-function escucharPuntosEnLaNube() {
-    // Evento SSE (Server-Sent Events) nativo para escuchar cambios en Firebase de forma instantánea
-    const eventSource = new EventSource(`${FIREBASE_DB_URL}puntos.json`);
+// FUNCIÓN CORREGIDA: Descarga los puntos reales y los dibuja correctamente para todos
+function cargarPuntosDesdeLaNube() {
+    fetch(`${FIREBASE_DB_URL}puntos.json`)
+    .then(res => res.json())
+    .then(registros => {
+        // Guardar qué popups estaban abiertos antes de limpiar para no molestar al usuario
+        let popupAbiertoLatLng = null;
+        if (map._popup && map._popup.getLatLng()) {
+            popupAbiertoLatLng = map._popup.getLatLng();
+        }
 
-    eventSource.onmessage = function(event) {
-        const data = JSON.parse(event.data);
-        if (!data) return;
-
-        // Limpiar marcadores actuales para redibujar con los datos frescos de internet
+        // Limpiar el mapa por completo para evitar duplicados
         cluster.clearLayers();
         puntos = [];
 
-        // Firebase nos devuelve la estructura de datos en el campo "data"
-        const registros = data.data;
-        
+        // Si la base de datos no está vacía
         if (registros && typeof registros === 'object') {
             for (let id in registros) {
                 const p = registros[id];
-                p.id = id; // Guardamos el ID único de Firebase para poder modificarlo luego
+                p.id = id; // Guardamos el ID único que generó Firebase
                 dibujarPuntoEnMapa(p);
             }
         }
+        
         actualizarStats();
         filtrarMarcadores();
-    };
+
+        // Si había un popup abierto, lo dejamos abierto con los datos actualizados
+        if (popupAbiertoLatLng) {
+            const puntoActualizado = puntos.find(p => p.lat === popupAbiertoLatLng.lat && p.lng === popupAbiertoLatLng.lng);
+            if (puntoActualizado) {
+                actualizarPopup(puntoActualizado);
+            }
+        }
+    })
+    .catch(err => console.error("Error de sincronización con Firebase:", err));
 }
 
 // Auxiliar para pintar el círculo en el mapa
 function dibujarPuntoEnMapa(puntoData) {
-    let color = '#00ff66';
+    let color = '#00ff66'; // Bajo
     if (puntoData.nivel === 'medio') color = '#ffb300';
     if (puntoData.nivel === 'alto') color = '#ff245b';
 
@@ -118,10 +131,9 @@ async function crearPunto(lat, lng, nivel) {
         const data = await response.json();
         direccion = data.display_name || "Oruro";
     } catch (e) {
-        console.log("Error de geocodificación inversa, usando genérico.");
+        console.log("Usando dirección genérica.");
     }
 
-    // Estructura del reporte que viajará a internet
     const nuevoPunto = {
         nivel: nivel,
         estado: 'espera',
@@ -132,7 +144,7 @@ async function crearPunto(lat, lng, nivel) {
         direccion: direccion
     };
 
-    // GUARDAR EN FIREBASE (POST) para que todos los dispositivos lo vean
+    // GUARDAR EN FIREBASE (POST)
     fetch(`${FIREBASE_DB_URL}puntos.json`, {
         method: 'POST',
         body: JSON.stringify(nuevoPunto),
@@ -140,9 +152,11 @@ async function crearPunto(lat, lng, nivel) {
     })
     .then(res => res.json())
     .then(data => {
-        console.log("Reporte guardado en la nube con ID:", data.name);
+        console.log("¡Punto guardado en la nube de Firebase con éxito!");
+        // Forzar actualización inmediata local para no esperar los 3 segundos
+        cargarPuntosDesdeLaNube();
     })
-    .catch(err => alert("Error al conectar con el servidor de basura: " + err));
+    .catch(err => alert("Error al enviar el punto: " + err));
 }
 
 
@@ -150,26 +164,27 @@ async function crearPunto(lat, lng, nivel) {
    CAMBIAR ESTADO (ACTUALIZACIÓN REAL DESDE EL CAMIÓN)
 ===================================================== */
 function cambiarEstadoEnMemoria(lat, lng, nuevoEstado) {
-    // Buscamos el punto afectado localmente para obtener su ID de Firebase
+    // Buscar el punto usando las coordenadas para hallar su ID de Firebase
     const punto = puntos.find(p => p.lat === lat && p.lng === lng);
     if (!punto || !punto.id) return;
 
-    // ACTUALIZAR EN FIREBASE (PATCH) usando su ID único
+    // ACTUALIZAR EN FIREBASE (PATCH)
     fetch(`${FIREBASE_DB_URL}puntos/${punto.id}.json`, {
         method: 'PATCH',
         body: JSON.stringify({ estado: nuevoEstado }),
         headers: { 'Content-Type': 'application/json' }
     })
     .then(() => {
-        console.log(`Punto ${punto.id} actualizado a ${nuevoEstado} exitosamente.`);
+        console.log(`Punto actualizado en internet a estado: ${nuevoEstado}`);
+        if (routingControl !== null && nuevoEstado === 'recogido') {
+            map.removeControl(routingControl);
+            routingControl = null;
+        }
+        map.closePopup();
+        // Forzar recarga para actualizar todas las pantallas de inmediato
+        cargarPuntosDesdeLaNube();
     })
-    .catch(err => console.error("Error al actualizar estado en la nube:", err));
-
-    if (routingControl !== null && nuevoEstado === 'recogido') {
-        map.removeControl(routingControl);
-        routingControl = null;
-    }
-    map.closePopup();
+    .catch(err => console.error("Error al actualizar en la nube:", err));
 }
 
 
@@ -191,7 +206,7 @@ function limpiarPuntos() {
         cluster.clearLayers();
         puntos = [];
         actualizarStats();
-        alert('Base de datos reseteada correctamente.');
+        alert('Base de datos limpia y en cero.');
     })
     .catch(err => alert("Error al limpiar la nube: " + err));
 }
@@ -211,7 +226,7 @@ function iniciarSeguimientoTiempoReal(tipo) {
     const watchId = navigator.geolocation.watchPosition(function(pos) {
         const lat = pos.coords.latitude; const lng = pos.coords.longitude;
         if (marcadorUsuarioConectado) map.removeLayer(marcadorUsuarioConectado);
-        let icono = tipo === "camion" ? "物件" : "🏠";
+        let icono = tipo === "camion" ? "🚛" : "🏠";
         marcadorUsuarioConectado = L.marker([lat, lng]).addTo(map).bindPopup(`<b>${icono} Mi posición en Oruro</b>`);
     }, null, { enableHighAccuracy: true });
     if (tipo === "vecino") watchIdVecino = watchId;
@@ -236,6 +251,7 @@ function loginPersonal() {
         document.getElementById('exportBtn').style.display = 'block';
         document.getElementById('clearBtn').style.display = 'block';
         establecerPosicionPorRol(OFICINAS_EMAO_ADMIN, "🏢 Oficinas EMAO (Junín y Velasco Galvarro)");
+        cargarPuntosDesdeLaNube(); // Forzar render al cambiar de rol
     } 
     else if (user === 'camion' && pass === '12345') {
         modo = 'camion';
@@ -245,6 +261,7 @@ function loginPersonal() {
         document.getElementById('clearBtn').style.display = 'none';
         iniciarCamion30Segundos();
         setInterval(iniciarCamion30Segundos, 30000);
+        cargarPuntosDesdeLaNube(); // Forzar render al cambiar de rol
     } else {
         document.getElementById('error').innerHTML = 'Credenciales Incorrectas';
     }
@@ -256,11 +273,12 @@ function loginVecino() {
     document.getElementById('userType').innerHTML = '<i class="fas fa-house"></i> Vecino';
     ocultarBotonesAdmin();
     iniciarSeguimientoTiempoReal("vecino");
+    cargarPuntosDesdeLaNube();
 }
 
 function ocultarBotonesAdmin() {
-    document.getElementById('exportBtn').style.display = 'none';
-    document.getElementById('clearBtn').style.display = 'none';
+    if(document.getElementById('exportBtn')) document.getElementById('exportBtn').style.display = 'none';
+    if(document.getElementById('clearBtn')) document.getElementById('clearBtn').style.display = 'none';
 }
 
 function activarModoAgregar() {
@@ -278,9 +296,9 @@ function activarModoAgregar() {
 function mostrarSelectorNivel(lat, lng) {
     const html = `
         <div style="min-width:220px;color:black;">
-            <h3>Nivel de Residuos</h3>
-            <button onclick="crearPunto(${lat},${lng},'bajo')" style="width:100%; margin-bottom:8px; background:#00ff66; padding:8px; border-radius:6px; font-weight:bold; cursor:pointer; border:none;">🟢 Bajo</button>
-            <button onclick="crearPunto(${lat},${lng},'medio')" style="width:100%; margin-bottom:8px; background:#ffb300; padding:8px; border-radius:6px; font-weight:bold; cursor:pointer; border:none;">🟠 Medio</button>
+            <h3 style="margin-top:0;margin-bottom:10px;">Nivel de Residuos</h3>
+            <button onclick="crearPunto(${lat},${lng},'bajo')" style="width:100%; margin-bottom:8px; background:#00ff66; padding:8px; border-radius:6px; font-weight:bold; cursor:pointer; border:none; color:black;">🟢 Bajo</button>
+            <button onclick="crearPunto(${lat},${lng},'medio')" style="width:100%; margin-bottom:8px; background:#ffb300; padding:8px; border-radius:6px; font-weight:bold; cursor:pointer; border:none; color:black;">🟠 Medio</button>
             <button onclick="crearPunto(${lat},${lng},'alto')" style="width:100%; background:#ff245b; color:white; padding:8px; border-radius:6px; font-weight:bold; cursor:pointer; border:none;">🔴 Alto</button>
         </div>`;
     L.popup().setLatLng([lat, lng]).setContent(html).openOn(map);
@@ -291,14 +309,14 @@ function actualizarPopup(punto) {
     let botonesLogistica = (modo === 'camion' || modo === 'admin') ? `
         <button onclick="trazarRutaHaciaPunto(${punto.lat},${punto.lng})" style="width:100%; margin-bottom:6px; padding:6px; background:#00f0ff; font-weight:bold; cursor:pointer; border-radius:4px; border:none; color:black;">🚛 Trazar Ruta</button>
         <button onclick="cambiarEstadoEnMemoria(${punto.lat},${punto.lng},'recogido')" style="width:100%; padding:6px; background:#39ff14; font-weight:bold; cursor:pointer; border-radius:4px; border:none; color:black;">✅ Finalizar Trabajo</button>
-    ` : `<p style="text-align:center; color:#666; font-size:12px;">🕒 En espera de atención EMAO</p>`;
+    ` : `<p style="text-align:center; color:#666; font-size:12px; margin:5px 0 0 0;">🕒 En espera de atención EMAO</p>`;
 
     punto.marker.bindPopup(`
         <div style="color:black; min-width:200px;">
-            <h3>Reporte Urbano</h3>
+            <h3 style="margin-top:0; margin-bottom:8px;">Reporte Urbano</h3>
             <b>Volumen:</b> ${punto.nivel.toUpperCase()}<br>
             <b>Estado:</b> <span style="color:${estadoColor}; font-weight:bold;">${punto.estado.toUpperCase()}</span><br>
-            <b>Dirección:</b> <small>${punto.direccion}</small><br><br>
+            <b>Dirección:</b> <br><small style="color:#555;">${punto.direccion}</small><br><br>
             ${botonesLogistica}
         </div>
     `);
@@ -363,5 +381,7 @@ function exportarDatos() {
     link.click();
 }
 
-document.getElementById('mapFilter').addEventListener('change', filtrarMarcadores);
+if(document.getElementById('mapFilter')) {
+    document.getElementById('mapFilter').addEventListener('change', filtrarMarcadores);
+}
 actualizarStats();
