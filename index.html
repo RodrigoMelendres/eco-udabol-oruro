@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECO-UDABOL | Gestión Inteligente de Residuos</title>
+
+    <!-- FUENTES -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <!-- ICONOS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+
+    <!-- LEAFLET CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+    <!-- CLUSTER CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css"/>
+
+    <!-- LEAFLET ROUTING MACHINE CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+
+    <!-- TU ESTILO PROPIO (Asegúrate de que el archivo se llame style.css exactamente) -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- LOGIN -->
+    <div id="loginScreen">
+        <div class="login-box">
+            <h1>ECO-UDABOL</h1>
+         
+            <div class="input-group">
+                <label>Usuario / Personal</label>
+                <input type="text" id="user" placeholder="Ingrese usuario">
+            </div>
+
+            <div class="input-group">
+                <label>Contraseña</label>
+                <input type="password" id="pass" placeholder="Ingrese contraseña">
+            </div>
+
+            <button class="btn btn-admin" onclick="loginPersonal()">
+                <i class="fas fa-user-shield"></i>
+                Entrar como Personal (Admin / Camión)
+            </button>
+
+            <button class="btn btn-vecino" onclick="loginVecino()">
+                <i class="fas fa-house"></i>
+                Entrar como Vecino
+            </button>
+
+            <div id="error"></div>
+        </div>
+    </div>
+
+    <!-- HEADER -->
+    <header>
+        <div class="logo">
+            <i class="fas fa-recycle"></i>
+            <div>
+                <h1>ECO-UDABOL</h1>
+                <small>Sistema Inteligente de Residuos</small>
+            </div>
+        </div>
+        <div id="userType">
+            Invitado
+        </div>
+    </header>
+
+    <!-- CONTENIDO -->
+    <div id="container">
+        <!-- MAPA -->
+        <div id="map"></div>
+
+        <!-- PANEL -->
+        <div id="panel">
+            <div class="panel-content">
+                
+                <!-- SECCIÓN DE FILTROS -->
+                <div class="filter-group">
+                    <label for="mapFilter"><i class="fas fa-filter"></i> Filtrar Puntos:</label>
+                    <select id="mapFilter" onchange="filtrarMarcadores()">
+                        <option value="todos">👁️ Ver Todo</option>
+                        <option value="alto">🔴 Solo Críticos (Alto)</option>
+                        <option value="espera">⏳ Solo Pendientes (En Espera)</option>
+                    </select>
+                </div>
+                <hr style="margin:15px 0; border-color:#1f2937;">
+
+                <button class="action-btn" onclick="activarModoAgregar()">
+                    <i class="fas fa-plus-circle"></i>
+                    Reportar Punto
+                </button>
+
+                <button class="action-btn" id="exportBtn" onclick="exportarDatos()" style="display:none;">
+                    <i class="fas fa-file-export"></i>
+                    Exportar CSV
+                </button>
+
+                <button class="action-btn red-btn" id="clearBtn" onclick="limpiarPuntos()" style="display:none;">
+                    <i class="fas fa-trash"></i>
+                    Limpiar Todo
+                </button>
+
+                <textarea id="mensaje" placeholder="Escribe un mensaje..."></textarea>
+
+                <button class="action-btn" onclick="enviarMensaje()">
+                    <i class="fas fa-paper-plane"></i>
+                    Enviar Mensaje
+                </button>
+
+                <div class="messages" id="messages">
+                    <div class="message admin-message">
+                        <strong>Administrador</strong><br>
+                        Bienvenidos al sistema ECO-UDABOL.
+                    </div>
+                </div>
+
+                <!-- ESTADISTICAS -->
+                <div class="stats">
+                    <h3>ESTADÍSTICAS GENERALES</h3>
+
+                    <div class="stat-item">
+                        <strong>Bajo</strong>
+                        <span id="txtLow">0</span>
+                        <div class="bar">
+                            <div class="fill green" id="barLow"></div>
+                        </div>
+                    </div>
+
+                    <div class="stat-item">
+                        <strong>Medio</strong>
+                        <span id="txtMed">0</span>
+                        <div class="bar">
+                            <div class="fill orange" id="barMed"></div>
+                        </div>
+                    </div>
+
+                    <div class="stat-item">
+                        <strong>Alto</strong>
+                        <span id="txtHigh">0</span>
+                        <div class="bar">
+                            <div class="fill red" id="barHigh"></div>
+                        </div>
+                    </div>
+
+                    <hr style="margin:20px 0;border-color:#1f2937;">
+
+                    <h3>ESTADO DE RECOLECCIÓN</h3>
+
+                    <div class="stat-item">
+                        <strong>En espera:</strong>
+                        <span id="txtEspera">0</span>
+                    </div>
+
+                    <div class="stat-item">
+                        <strong>En camino:</strong>
+                        <span id="txtCamino">0</span>
+                    </div>
+
+                    <div class="stat-item">
+                        <strong>Recogido:</strong>
+                        <span id="txtRecogido">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS EN ORDEN CORRECTO -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    
+    <!-- TU SCRIPT PROPIO (Asegúrate de que el archivo se llame script.js exactamente) -->
+    <script src="script.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
