@@ -3,185 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ECO-UDABOL | Gestión Inteligente de Residuos</title>
-
-    <!-- FUENTES -->
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-
-    <!-- ICONOS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-
-    <!-- LEAFLET CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-
-    <!-- CLUSTER CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css"/>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css"/>
-
-    <!-- LEAFLET ROUTING MACHINE CSS -->
+    <title>EcoUDABOL Oruro - Sistema de Gestión de Residuos Urbano</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
-
-    <!-- TU ESTILO PROPIO (Asegúrate de que el archivo se llame style.css exactamente) -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-    <!-- LOGIN -->
-    <div id="loginScreen">
+    <div id="loginScreen" class="login-overlay">
         <div class="login-box">
-            <h1>ECO-UDABOL</h1>
-         
+            <h2><i class="fas fa-recycle"></i> EcoUDABOL Oruro</h2>
+            <p>Monitoreo de Basura Urbano en Tiempo Real</p>
+            <hr>
+            <div id="error" class="error-msg"></div>
+            
             <div class="input-group">
-                <label>Usuario / Personal</label>
-                <input type="text" id="user" placeholder="Ingrese usuario">
+                <label for="user"><i class="fas fa-user"></i> Usuario:</label>
+                <input type="text" id="user" placeholder="Ej: Rodrigo Melendres o camion">
             </div>
-
             <div class="input-group">
-                <label>Contraseña</label>
-                <input type="password" id="pass" placeholder="Ingrese contraseña">
+                <label for="pass"><i class="fas fa-lock"></i> Contraseña:</label>
+                <input type="password" id="pass" placeholder="Clave de acceso">
             </div>
-
-            <button class="btn btn-admin" onclick="loginPersonal()">
-                <i class="fas fa-user-shield"></i>
-                Entrar como Personal (Admin / Camión)
-            </button>
-
-            <button class="btn btn-vecino" onclick="loginVecino()">
-                <i class="fas fa-house"></i>
-                Entrar como Vecino
-            </button>
-
-            <div id="error"></div>
+            
+            <button class="btn btn-primary" onclick="loginPersonal()">Iniciar como Personal EMAO</button>
+            <div class="separator"><span>Ó</span></div>
+            <button class="btn btn-secondary" onclick="loginVecino()">Ingresar como Vecino de Oruro</button>
         </div>
     </div>
 
-    <!-- HEADER -->
-    <header>
-        <div class="logo">
-            <i class="fas fa-recycle"></i>
-            <div>
-                <h1>ECO-UDABOL</h1>
-                <small>Sistema Inteligente de Residuos</small>
+    <button id="toggleMenuBtn" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <span id="userType"><i class="fas fa-user"></i> Cargando...</span>
+        </div>
+
+        <div class="sidebar-section">
+            <button class="btn btn-add" onclick="activarModoAgregar()"><i class="fas fa-plus-circle"></i> Reportar Punto</button>
+            <button id="exportBtn" class="btn btn-export" onclick="exportarDatos()"><i class="fas fa-file-csv"></i> Exportar CSV</button>
+            <button id="clearBtn" class="btn btn-danger" onclick="limpiarPuntos()"><i class="fas fa-trash-alt"></i> Limpiar Todo</button>
+        </div>
+
+        <div class="sidebar-section">
+            <label for="mapFilter"><b><i class="fas fa-filter"></i> Filtrar Mapa:</b></label>
+            <select id="mapFilter">
+                <option value="todos">Mostrar Todo Oruro</option>
+                <option value="alto">Solo Puntos Críticos (Alto)</option>
+                <option value="espera">Solo en Espera de Camión</option>
+            </select>
+        </div>
+
+        <div class="sidebar-section">
+            <h3>ESTADÍSTICAS GENERALES</h3>
+            <div class="stat-row">
+                <span>Bajo: <b id="txtLow">0</b></span>
+                <div class="progress-bar"><div id="barLow" class="progress bg-low"></div></div>
+            </div>
+            <div class="stat-row">
+                <span>Medio: <b id="txtMed">0</b></span>
+                <div class="progress-bar"><div id="barMed" class="progress bg-med"></div></div>
+            </div>
+            <div class="stat-row">
+                <span>Alto: <b id="txtHigh">0</b></span>
+                <div class="progress-bar"><div id="barHigh" class="progress bg-high"></div></div>
             </div>
         </div>
-        <div id="userType">
-            Invitado
+
+        <div class="sidebar-section">
+            <h3>ESTADO DE RECOLECCIÓN</h3>
+            <div class="status-item">🕒 En espera: <b id="txtEspera">0</b></div>
+            <div class="status-item">🚛 En camino: <b id="txtCamino">0</b></div>
+            <div class="status-item">✅ Recogido: <b id="txtRecogido">0</b></div>
         </div>
-    </header>
 
-    <!-- CONTENIDO -->
-    <div id="container">
-        <!-- MAPA -->
-        <div id="map"></div>
-
-        <!-- PANEL -->
-        <div id="panel">
-            <div class="panel-content">
-                
-                <!-- SECCIÓN DE FILTROS -->
-                <div class="filter-group">
-                    <label for="mapFilter"><i class="fas fa-filter"></i> Filtrar Puntos:</label>
-                    <select id="mapFilter" onchange="filtrarMarcadores()">
-                        <option value="todos">👁️ Ver Todo</option>
-                        <option value="alto">🔴 Solo Críticos (Alto)</option>
-                        <option value="espera">⏳ Solo Pendientes (En Espera)</option>
-                    </select>
-                </div>
-                <hr style="margin:15px 0; border-color:#1f2937;">
-
-                <button class="action-btn" onclick="activarModoAgregar()">
-                    <i class="fas fa-plus-circle"></i>
-                    Reportar Punto
-                </button>
-
-                <button class="action-btn" id="exportBtn" onclick="exportarDatos()" style="display:none;">
-                    <i class="fas fa-file-export"></i>
-                    Exportar CSV
-                </button>
-
-                <button class="action-btn red-btn" id="clearBtn" onclick="limpiarPuntos()" style="display:none;">
-                    <i class="fas fa-trash"></i>
-                    Limpiar Todo
-                </button>
-
-                <textarea id="mensaje" placeholder="Escribe un mensaje..."></textarea>
-
-                <button class="action-btn" onclick="enviarMensaje()">
-                    <i class="fas fa-paper-plane"></i>
-                    Enviar Mensaje
-                </button>
-
-                <div class="messages" id="messages">
-                    <div class="message admin-message">
-                        <strong>Administrador</strong><br>
-                        Bienvenidos al sistema ECO-UDABOL.
-                    </div>
-                </div>
-
-                <!-- ESTADISTICAS -->
-                <div class="stats">
-                    <h3>ESTADÍSTICAS GENERALES</h3>
-
-                    <div class="stat-item">
-                        <strong>Bajo</strong>
-                        <span id="txtLow">0</span>
-                        <div class="bar">
-                            <div class="fill green" id="barLow"></div>
-                        </div>
-                    </div>
-
-                    <div class="stat-item">
-                        <strong>Medio</strong>
-                        <span id="txtMed">0</span>
-                        <div class="bar">
-                            <div class="fill orange" id="barMed"></div>
-                        </div>
-                    </div>
-
-                    <div class="stat-item">
-                        <strong>Alto</strong>
-                        <span id="txtHigh">0</span>
-                        <div class="bar">
-                            <div class="fill red" id="barHigh"></div>
-                        </div>
-                    </div>
-
-                    <hr style="margin:20px 0;border-color:#1f2937;">
-
-                    <h3>ESTADO DE RECOLECCIÓN</h3>
-
-                    <div class="stat-item">
-                        <strong>En espera:</strong>
-                        <span id="txtEspera">0</span>
-                    </div>
-
-                    <div class="stat-item">
-                        <strong>En camino:</strong>
-                        <span id="txtCamino">0</span>
-                    </div>
-
-                    <div class="stat-item">
-                        <strong>Recogido:</strong>
-                        <span id="txtRecogido">0</span>
-                    </div>
-                </div>
+        <div class="sidebar-section chat-section">
+            <h3><i class="fas fa-comments"></i> Mensajes de Alerta</h3>
+            <div class="chat-input-box">
+                <input type="text" id="mensaje" placeholder="Escribe un aviso...">
+                <button onclick="enviarMensaje()"><i class="fas fa-paper-plane"></i></button>
             </div>
+            <div id="messages" class="messages-container"></div>
         </div>
     </div>
 
-    <!-- SCRIPTS EN ORDEN CORRECTO -->
+    <div id="map"></div>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
     
-    <!-- TU SCRIPT PROPIO (Asegúrate de que el archivo se llame script.js exactamente) -->
     <script src="script.js"></script>
 </body>
 </html>
-
-
-
-
-
-
 

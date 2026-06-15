@@ -42,40 +42,56 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const cluster = L.markerClusterGroup();
 map.addLayer(cluster);
 
-// Inicializar el sistema apuntando a Oruro
+// Inicializar apuntando a Oruro de entrada
 establecerPosicionPorRol(PLAZA_10_FEBRERO_VECINO, "🏠 Vecino (Plaza 10 de Febrero)");
 ocultarBotonesAdmin();
 
-// ¡ACTIVAR LA SINCRONIZACIÓN AUTOMÁTICA EN TIEMPO REAL!
-// Carga los puntos inmediatamente y luego revisa internet cada 3 segundos
+// Sincronización cíclica cada 3 segundos garantizada para todos los dispositivos
 cargarPuntosDesdeLaNube();
-setInterval(cargarPuntosDesdeLaNube, 30000);
+setInterval(cargarPuntosDesdeLaNube, 3000);
+
+
+/* =====================================================
+   MENÚ LATERAL DESLIZABLE (LOGICA DE INTERFAZ)
+===================================================== */
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const btn = document.getElementById('toggleMenuBtn');
+    
+    sidebar.classList.toggle('hidden');
+    
+    if (sidebar.classList.contains('hidden')) {
+        btn.innerHTML = `<i class="fas fa-bars"></i>`;
+    } else {
+        btn.innerHTML = `<i class="fas fa-times"></i>`;
+    }
+    
+    // Forzar a Leaflet a reajustar el tamaño del mapa tras el deslizamiento
+    setTimeout(() => {
+        map.invalidateSize();
+    }, 400);
+}
 
 
 /* =====================================================
    CONEXIÓN CON LA BASE DE DATOS (FIREBASE)
 ===================================================== */
-
-// FUNCIÓN CORREGIDA: Descarga los puntos reales y los dibuja correctamente para todos
 function cargarPuntosDesdeLaNube() {
     fetch(`${FIREBASE_DB_URL}puntos.json`)
     .then(res => res.json())
     .then(registros => {
-        // Guardar qué popups estaban abiertos antes de limpiar para no molestar al usuario
         let popupAbiertoLatLng = null;
         if (map._popup && map._popup.getLatLng()) {
             popupAbiertoLatLng = map._popup.getLatLng();
         }
 
-        // Limpiar el mapa por completo para evitar duplicados
         cluster.clearLayers();
         puntos = [];
 
-        // Si la base de datos no está vacía
         if (registros && typeof registros === 'object') {
             for (let id in registros) {
                 const p = registros[id];
-                p.id = id; // Guardamos el ID único que generó Firebase
+                p.id = id;
                 dibujarPuntoEnMapa(p);
             }
         }
@@ -83,7 +99,6 @@ function cargarPuntosDesdeLaNube() {
         actualizarStats();
         filtrarMarcadores();
 
-        // Si había un popup abierto, lo dejamos abierto con los datos actualizados
         if (popupAbiertoLatLng) {
             const puntoActualizado = puntos.find(p => p.lat === popupAbiertoLatLng.lat && p.lng === popupAbiertoLatLng.lng);
             if (puntoActualizado) {
@@ -91,12 +106,11 @@ function cargarPuntosDesdeLaNube() {
             }
         }
     })
-    .catch(err => console.error("Error de sincronización con Firebase:", err));
+    .catch(err => console.error("Error cargando base de datos:", err));
 }
 
-// Auxiliar para pintar el círculo en el mapa
 function dibujarPuntoEnMapa(puntoData) {
-    let color = '#00ff66'; // Bajo
+    let color = '#00ff66';
     if (puntoData.nivel === 'medio') color = '#ffb300';
     if (puntoData.nivel === 'alto') color = '#ff245b';
 
@@ -116,14 +130,14 @@ function dibujarPuntoEnMapa(puntoData) {
 
 
 /* =====================================================
-   CREAR PUNTO (VECINO ENVÍA A LA NUBE)
+   CREAR REPORTE (VECINO)
 ===================================================== */
 async function crearPunto(lat, lng, nivel) {
     map.closePopup();
 
     const ahora = new Date();
     const fecha = ahora.toLocaleDateString();
-    const hora = ahora.toLocaleTimeString();
+    const hora = machinedHora = ahora.toLocaleTimeString();
 
     let direccion = "Zona Urbana Oruro";
     try {
@@ -131,7 +145,7 @@ async function crearPunto(lat, lng, nivel) {
         const data = await response.json();
         direccion = data.display_name || "Oruro";
     } catch (e) {
-        console.log("Usando dirección genérica.");
+        console.log("Dirección genérica mapeada.");
     }
 
     const nuevoPunto = {
@@ -144,81 +158,63 @@ async function crearPunto(lat, lng, nivel) {
         direccion: direccion
     };
 
-    // GUARDAR EN FIREBASE (POST)
     fetch(`${FIREBASE_DB_URL}puntos.json`, {
         method: 'POST',
         body: JSON.stringify(nuevoPunto),
         headers: { 'Content-Type': 'application/json' }
     })
     .then(res => res.json())
-    .then(data => {
-        console.log("¡Punto guardado en la nube de Firebase con éxito!");
-        // Forzar actualización inmediata local para no esperar los 3 segundos
+    .then(() => {
         cargarPuntosDesdeLaNube();
     })
-    .catch(err => alert("Error al enviar el punto: " + err));
+    .catch(err => alert("Error de red al reportar: " + err));
 }
 
 
 /* =====================================================
-   CAMBIAR ESTADO (ACTUALIZACIÓN REAL DESDE EL CAMIÓN)
+   ACTUALIZAR / FINALIZAR LOGÍSTICA (CAMIÓN / ADMIN)
 ===================================================== */
 function cambiarEstadoEnMemoria(lat, lng, nuevoEstado) {
-    // Buscar el punto usando las coordenadas para hallar su ID de Firebase
     const punto = puntos.find(p => p.lat === lat && p.lng === lng);
     if (!punto || !punto.id) return;
 
-    // ACTUALIZAR EN FIREBASE (PATCH)
     fetch(`${FIREBASE_DB_URL}puntos/${punto.id}.json`, {
         method: 'PATCH',
         body: JSON.stringify({ estado: nuevoEstado }),
         headers: { 'Content-Type': 'application/json' }
     })
     .then(() => {
-        console.log(`Punto actualizado en internet a estado: ${nuevoEstado}`);
         if (routingControl !== null && nuevoEstado === 'recogido') {
             map.removeControl(routingControl);
             routingControl = null;
         }
         map.closePopup();
-        // Forzar recarga para actualizar todas las pantallas de inmediato
         cargarPuntosDesdeLaNube();
     })
-    .catch(err => console.error("Error al actualizar en la nube:", err));
+    .catch(err => console.error("Error al despachar el estado:", err));
 }
 
-
-/* =====================================================
-   LIMPIAR MAPA TOTAL (SOLO ADMINISTRADOR)
-===================================================== */
 function limpiarPuntos() {
-    if (!confirm('¿Desea eliminar todos los reportes de Oruro de la base de datos de verdad?')) return;
+    if (!confirm('¿Desea vaciar por completo todos los puntos activos en Oruro de la nube?')) return;
 
-    // BORRAR TODO EN FIREBASE (DELETE)
-    fetch(`${FIREBASE_DB_URL}puntos.json`, {
-        method: 'DELETE'
-    })
+    fetch(`${FIREBASE_DB_URL}puntos.json`, { method: 'DELETE' })
     .then(() => {
-        if (routingControl !== null) {
-            map.removeControl(routingControl);
-            routingControl = null;
-        }
+        if (routingControl !== null) { map.removeControl(routingControl); routingControl = null; }
         cluster.clearLayers();
         puntos = [];
         actualizarStats();
-        alert('Base de datos limpia y en cero.');
-    })
-    .catch(err => alert("Error al limpiar la nube: " + err));
+        alert('Nube formateada y limpia.');
+    });
 }
 
 
 /* =====================================================
-   LOGÍSTICA INTERNA Y VISUALIZACIÓN
+   ROLES, LOGINS Y UBICACIONES
 ===================================================== */
 function establecerPosicionPorRol(coords, texto) {
     if (marcadorUsuarioConectado) map.removeLayer(marcadorUsuarioConectado);
     marcadorUsuarioConectado = L.marker(coords).addTo(map).bindPopup(`<b>${texto}</b>`).openPopup();
-    map.setView(coords, 16);
+    map.setView(coords, 15);
 }
 
 function iniciarSeguimientoTiempoReal(tipo) {
@@ -227,17 +223,10 @@ function iniciarSeguimientoTiempoReal(tipo) {
         const lat = pos.coords.latitude; const lng = pos.coords.longitude;
         if (marcadorUsuarioConectado) map.removeLayer(marcadorUsuarioConectado);
         let icono = tipo === "camion" ? "🚛" : "🏠";
-        marcadorUsuarioConectado = L.marker([lat, lng]).addTo(map).bindPopup(`<b>${icono} Mi posición en Oruro</b>`);
+        marcadorUsuarioConectado = L.marker([lat, lng]).addTo(map).bindPopup(`<b>${icono} Mi posición real</b>`);
     }, null, { enableHighAccuracy: true });
     if (tipo === "vecino") watchIdVecino = watchId;
     if (tipo === "camion") watchIdCamion = watchId;
-}
-
-function iniciarCamion30Segundos() {
-    navigator.geolocation.getCurrentPosition(function(pos) {
-        if (marcadorUsuarioConectado) map.removeLayer(marcadorUsuarioConectado);
-        marcadorUsuarioConectado = L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(map).bindPopup(`<b>🚛 Camión Recolector Activo</b>`);
-    }, null, { enableHighAccuracy: true });
 }
 
 function loginPersonal() {
@@ -251,7 +240,6 @@ function loginPersonal() {
         document.getElementById('exportBtn').style.display = 'block';
         document.getElementById('clearBtn').style.display = 'block';
         establecerPosicionPorRol(OFICINAS_EMAO_ADMIN, "🏢 Oficinas EMAO (Junín y Velasco Galvarro)");
-        cargarPuntosDesdeLaNube(); // Forzar render al cambiar de rol
     } 
     else if (user === 'camion' && pass === '12345') {
         modo = 'camion';
@@ -259,9 +247,7 @@ function loginPersonal() {
         document.getElementById('userType').innerHTML = `<i class="fas fa-truck"></i> Operador Camión`;
         document.getElementById('exportBtn').style.display = 'block';
         document.getElementById('clearBtn').style.display = 'none';
-        iniciarCamion30Segundos();
-        setInterval(iniciarCamion30Segundos, 30000);
-        cargarPuntosDesdeLaNube(); // Forzar render al cambiar de rol
+        establecerPosicionPorRol(AV_6_DE_AGOSTO_CAMION, "🚛 Base Camión de Basura");
     } else {
         document.getElementById('error').innerHTML = 'Credenciales Incorrectas';
     }
@@ -273,7 +259,6 @@ function loginVecino() {
     document.getElementById('userType').innerHTML = '<i class="fas fa-house"></i> Vecino';
     ocultarBotonesAdmin();
     iniciarSeguimientoTiempoReal("vecino");
-    cargarPuntosDesdeLaNube();
 }
 
 function ocultarBotonesAdmin() {
@@ -282,23 +267,23 @@ function ocultarBotonesAdmin() {
 }
 
 function activarModoAgregar() {
-    alert("Haz clic en cualquier zona de Oruro para reportar acumulación de residuos.");
+    alert("Haz clic en cualquier punto del mapa de Oruro para reportar desborde de basura.");
     map.once('click', (e) => {
         const lat = e.latlng.lat; const lng = e.latlng.lng;
         if (lat >= LIMITES_ORURO.latMin && lat <= LIMITES_ORURO.latMax && lng >= LIMITES_ORURO.lngMin && lng <= LIMITES_ORURO.lngMax) {
             mostrarSelectorNivel(lat, lng);
         } else {
-            alert("❌ Fuera de los límites de Oruro.");
+            alert("❌ Reporte inválido. El punto debe estar dentro de Oruro.");
         }
     });
 }
 
 function mostrarSelectorNivel(lat, lng) {
     const html = `
-        <div style="min-width:220px;color:black;">
-            <h3 style="margin-top:0;margin-bottom:10px;">Nivel de Residuos</h3>
-            <button onclick="crearPunto(${lat},${lng},'bajo')" style="width:100%; margin-bottom:8px; background:#00ff66; padding:8px; border-radius:6px; font-weight:bold; cursor:pointer; border:none; color:black;">🟢 Bajo</button>
-            <button onclick="crearPunto(${lat},${lng},'medio')" style="width:100%; margin-bottom:8px; background:#ffb300; padding:8px; border-radius:6px; font-weight:bold; cursor:pointer; border:none; color:black;">🟠 Medio</button>
+        <div style="min-width:220px;color:black; font-family:sans-serif;">
+            <h3 style="margin:0 0 10px 0; font-size:16px;">Nivel de Residuos</h3>
+            <button onclick="crearPunto(${lat},${lng},'bajo')" style="width:100%; margin-bottom:8px; background:#00ff66; padding:8px; border-radius:6px; font-weight:bold; cursor:pointer; border:none;">🟢 Bajo</button>
+            <button onclick="crearPunto(${lat},${lng},'medio')" style="width:100%; margin-bottom:8px; background:#ffb300; padding:8px; border-radius:6px; font-weight:bold; cursor:pointer; border:none;">🟠 Medio</button>
             <button onclick="crearPunto(${lat},${lng},'alto')" style="width:100%; background:#ff245b; color:white; padding:8px; border-radius:6px; font-weight:bold; cursor:pointer; border:none;">🔴 Alto</button>
         </div>`;
     L.popup().setLatLng([lat, lng]).setContent(html).openOn(map);
@@ -312,11 +297,11 @@ function actualizarPopup(punto) {
     ` : `<p style="text-align:center; color:#666; font-size:12px; margin:5px 0 0 0;">🕒 En espera de atención EMAO</p>`;
 
     punto.marker.bindPopup(`
-        <div style="color:black; min-width:200px;">
-            <h3 style="margin-top:0; margin-bottom:8px;">Reporte Urbano</h3>
+        <div style="color:black; min-width:200px; font-family:sans-serif;">
+            <h3 style="margin:0 0 8px 0; font-size:16px;">Reporte Urbano</h3>
             <b>Volumen:</b> ${punto.nivel.toUpperCase()}<br>
             <b>Estado:</b> <span style="color:${estadoColor}; font-weight:bold;">${punto.estado.toUpperCase()}</span><br>
-            <b>Dirección:</b> <br><small style="color:#555;">${punto.direccion}</small><br><br>
+            <b>Ubicación:</b> <br><small style="color:#555;">${punto.direccion}</small><br><br>
             ${botonesLogistica}
         </div>
     `);
