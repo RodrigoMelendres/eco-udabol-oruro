@@ -5,28 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ECO-UDABOL | Gestión Inteligente de Residuos</title>
 
-    <!-- FUENTES -->
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
 
-    <!-- ICONOS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 
-    <!-- LEAFLET CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
-    <!-- CLUSTER CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css"/>
 
-    <!-- LEAFLET ROUTING MACHINE CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
 
-    <!-- TU ESTILO PROPIO (Asegúrate de que el archivo se llame style.css exactamente) -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <!-- LOGIN -->
     <div id="loginScreen">
         <div class="login-box">
             <h1>ECO-UDABOL</h1>
@@ -55,7 +48,6 @@
         </div>
     </div>
 
-    <!-- HEADER -->
     <header>
         <div class="logo">
             <i class="fas fa-recycle"></i>
@@ -69,16 +61,16 @@
         </div>
     </header>
 
-    <!-- CONTENIDO -->
     <div id="container">
-        <!-- MAPA -->
+        <button class="toggle-panel-btn" onclick="toggleMenuLateral()">
+            <i class="fas fa-bars"></i>
+        </button>
+
         <div id="map"></div>
 
-        <!-- PANEL -->
         <div id="panel">
             <div class="panel-content">
                 
-                <!-- SECCIÓN DE FILTROS -->
                 <div class="filter-group">
                     <label for="mapFilter"><i class="fas fa-filter"></i> Filtrar Puntos:</label>
                     <select id="mapFilter" onchange="filtrarMarcadores()">
@@ -118,7 +110,6 @@
                     </div>
                 </div>
 
-                <!-- ESTADISTICAS -->
                 <div class="stats">
                     <h3>ESTADÍSTICAS GENERALES</h3>
 
@@ -169,12 +160,10 @@
         </div>
     </div>
 
-    <!-- SCRIPTS EN ORDEN CORRECTO -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
     
-    <!-- TU SCRIPT PROPIO (Asegúrate de que el archivo se llame script.js exactamente) -->
     <script src="script.js"></script>
 </body>
 </html>

@@ -159,7 +159,7 @@ header {
 #map {
     flex: 1;
     height: 100%;
-    background: #0d1117; /* Fondo oscuro por si tarda en cargar OpenStreetMap */
+    background: #0d1117;
 }
 
 /* PANEL */
@@ -307,4 +307,65 @@ textarea {
 .leaflet-routing-alt {
     background-color: #070b11 !important;
     color: white !important;
+}
+
+/* =====================================================
+   RESPONSIVIDAD Y PANEL DESLIZABLE PARA MÓVILES
+===================================================== */
+.toggle-panel-btn {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    #container {
+        position: relative;
+        overflow: hidden;
+    }
+
+    #map {
+        width: 100%;
+        height: 100%;
+        flex: none;
+    }
+
+    #panel {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 290px;
+        height: 100%;
+        z-index: 3000;
+        box-shadow: -5px 0 15px rgba(0, 0, 0, 0.6);
+        transition: transform 0.3s ease-in-out;
+        transform: translateX(100%); 
+    }
+
+    #panel.open {
+        transform: translateX(0);
+    }
+
+    .toggle-panel-btn {
+        display: flex;
+        position: absolute;
+        bottom: 25px;
+        right: 25px;
+        width: 55px;
+        height: 55px;
+        background: var(--panel);
+        border: 2px solid var(--green);
+        color: var(--green);
+        border-radius: 50%;
+        justify-content: center;
+        align-items: center;
+        font-size: 22px;
+        cursor: pointer;
+        z-index: 3100;
+        box-shadow: 0 0 15px rgba(57, 255, 20, 0.4);
+        transition: 0.2s;
+    }
+    
+    .toggle-panel-btn:active {
+        background: var(--green);
+        color: black;
+    }
 }
