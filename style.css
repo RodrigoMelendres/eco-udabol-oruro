@@ -147,28 +147,30 @@ header {
     color: var(--cyan);
 }
 
-/* CONTENEDOR */
+/* CONTENEDOR INTEGRADO */
 #container {
     display: flex;
     width: 100%;
     height: 100vh;
     padding-top: 70px;
+    position: relative;
 }
 
-/* MAPA */
+/* MAPA (Flexible por defecto en pantallas grandes) */
 #map {
     flex: 1;
     height: 100%;
     background: #0d1117;
 }
 
-/* PANEL */
+/* PANEL LATERAL (Fijo en PCs y Laptops) */
 #panel {
     width: 370px;
     background: #101722;
     border-left: 1px solid rgba(57, 255, 20, .2);
     overflow-y: auto;
     height: 100%;
+    transition: transform 0.3s ease-in-out;
 }
 
 .panel-content {
@@ -309,41 +311,51 @@ textarea {
     color: white !important;
 }
 
-/* =====================================================
-   RESPONSIVIDAD Y PANEL DESLIZABLE PARA MÓVILES
-===================================================== */
+/* Botón flotante oculto en computadoras de escritorio */
 .toggle-panel-btn {
     display: none;
 }
 
-@media (max-width: 768px) {
+
+/* =====================================================
+   MEDIA QUERY UNIFICADA: TABLETS Y CELULARES (<= 1024px)
+===================================================== */
+@media (max-width: 1024px) {
     #container {
         position: relative;
         overflow: hidden;
     }
 
+    /* El mapa se estira y absorbe el fondo por completo */
     #map {
         width: 100%;
         height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
         flex: none;
     }
 
+    /* El panel se oculta a la derecha y espera al disparador (toggle) */
     #panel {
         position: absolute;
         top: 0;
         right: 0;
-        width: 290px;
+        width: 320px; /* Tamaño optimizado y legible para Tablets y Teléfonos */
+        max-width: 85%;
         height: 100%;
         z-index: 3000;
         box-shadow: -5px 0 15px rgba(0, 0, 0, 0.6);
-        transition: transform 0.3s ease-in-out;
         transform: translateX(100%); 
+        border-left: 1px solid rgba(57, 255, 20, .3);
     }
 
+    /* Clase inyectada por JavaScript para abrirlo con fluidez */
     #panel.open {
         transform: translateX(0);
     }
 
+    /* Disparador flotante circular (Se activa en Tablets y Móviles) */
     .toggle-panel-btn {
         display: flex;
         position: absolute;
@@ -361,7 +373,7 @@ textarea {
         cursor: pointer;
         z-index: 3100;
         box-shadow: 0 0 15px rgba(57, 255, 20, 0.4);
-        transition: 0.2s;
+        transition: background 0.2s, color 0.2s;
     }
     
     .toggle-panel-btn:active {

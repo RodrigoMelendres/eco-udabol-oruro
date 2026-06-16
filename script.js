@@ -311,8 +311,12 @@ function ocultarBotonesAdmin() {
 function activarModoAgregar() {
     alert("Haz clic en cualquier zona de Oruro para reportar acumulación de residuos.");
     
-    if (window.innerWidth <= 768) {
-        toggleMenuLateral();
+    // Cerramos panel lateral si estamos en móvil o tablet (menor a 1024px)
+    if (window.innerWidth <= 1024) {
+        const panel = document.getElementById('panel');
+        if (panel.classList.contains('open')) {
+            toggleMenuLateral();
+        }
     }
 
     map.once('click', (e) => {
@@ -365,8 +369,12 @@ function trazarRutaHaciaPunto(lat, lng) {
         createMarker: function() { return null; }
     }).addTo(map);
 
-    if (window.innerWidth <= 768) {
-        toggleMenuLateral();
+    // Esconder el menú al trazar ruta en móviles o tablets
+    if (window.innerWidth <= 1024) {
+        const panel = document.getElementById('panel');
+        if (panel.classList.contains('open')) {
+            toggleMenuLateral();
+        }
     }
 }
 
@@ -421,7 +429,7 @@ actualizarStats();
 
 
 /* =====================================================
-   LOGICA DEL MENÚ DESLIZABLE INTERACTIVO (MÓVIL)
+   LOGICA DEL MENÚ DESLIZABLE INTERACTIVO (MÓVIL Y TABLET)
 ===================================================== */
 function toggleMenuLateral() {
     const panel = document.getElementById('panel');
@@ -435,6 +443,17 @@ function toggleMenuLateral() {
         botonIcono.className = 'fas fa-bars';
     }
 }
+
+/* =====================================================
+   AJUSTE DE REDIMENSIÓN RESPONSIVA AUTOMÁTICA
+===================================================== */
+window.addEventListener('resize', () => {
+    if (map) {
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 200);
+    }
+});
 
 /* =====================================================
    SISTEMA DE CHAT EN TIEMPO REAL CON FIREBASE
