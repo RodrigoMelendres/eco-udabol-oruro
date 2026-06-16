@@ -319,11 +319,13 @@ textarea {
 
 /* =====================================================
    MEDIA QUERY UNIFICADA: TABLETS Y CELULARES (<= 1024px)
+   (Optimizada para evitar superposiciones y fallos táctiles)
 ===================================================== */
 @media (max-width: 1024px) {
     #container {
         position: relative;
         overflow: hidden;
+        height: calc(100vh - 70px); /* Ajuste estricto para evitar scrolls raros en el body */
     }
 
     /* El mapa se estira y absorbe el fondo por completo */
@@ -334,6 +336,7 @@ textarea {
         top: 0;
         left: 0;
         flex: none;
+        z-index: 10; /* Z-index controlado para que Leaflet no rompa las capas superiores */
     }
 
     /* El panel se oculta a la derecha y espera al disparador (toggle) */
@@ -341,13 +344,14 @@ textarea {
         position: absolute;
         top: 0;
         right: 0;
-        width: 320px; /* Tamaño optimizado y legible para Tablets y Teléfonos */
+        width: 320px; 
         max-width: 85%;
         height: 100%;
-        z-index: 3000;
-        box-shadow: -5px 0 15px rgba(0, 0, 0, 0.6);
+        z-index: 4000 !important; /* Capa superior absoluta sobre el mapa de Leaflet y ruteos */
+        box-shadow: -8px 0 25px rgba(0, 0, 0, 0.8);
         transform: translateX(100%); 
         border-left: 1px solid rgba(57, 255, 20, .3);
+        background: #101722; /* Forzar fondo sólido para que el mapa no se transparente por detrás */
     }
 
     /* Clase inyectada por JavaScript para abrirlo con fluidez */
@@ -355,29 +359,37 @@ textarea {
         transform: translateX(0);
     }
 
-    /* Disparador flotante circular (Se activa en Tablets y Móviles) */
+    /* Disparador flotante circular (Ajustado ergonómicamente para dedos en Tablets y Móviles) */
     .toggle-panel-btn {
         display: flex;
-        position: absolute;
+        position: fixed; /* Cambiado a fixed para que se mantenga exacto en la esquina táctil */
         bottom: 25px;
         right: 25px;
-        width: 55px;
-        height: 55px;
+        width: 60px; /* Un poco más grande para facilitar la pulsación rápida */
+        height: 60px;
         background: var(--panel);
         border: 2px solid var(--green);
         color: var(--green);
         border-radius: 50%;
         justify-content: center;
         align-items: center;
-        font-size: 22px;
+        font-size: 24px;
         cursor: pointer;
-        z-index: 3100;
-        box-shadow: 0 0 15px rgba(57, 255, 20, 0.4);
-        transition: background 0.2s, color 0.2s;
+        z-index: 5000 !important; /* La jerarquía más alta del proyecto */
+        box-shadow: 0 0 20px rgba(57, 255, 20, 0.6);
+        transition: transform 0.2s, background 0.2s;
     }
     
     .toggle-panel-btn:active {
         background: var(--green);
         color: black;
+        transform: scale(0.95); /* Feedback táctil al presionar */
+    }
+
+    /* AJUSTE PARA LEAFLET ROUTING EN MÓVILES */
+    .leaflet-routing-container {
+        max-width: 280px !important;
+        font-size: 13px;
+        z-index: 15 !important; /* Visible sobre el mapa, pero por debajo de nuestro panel táctil */
     }
 }

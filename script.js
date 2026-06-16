@@ -429,7 +429,7 @@ actualizarStats();
 
 
 /* =====================================================
-   LOGICA DEL MENÚ DESLIZABLE INTERACTIVO (MÓVIL Y TABLET)
+   LOGICA DEL MENÚ DESLIZABLE INTERACTIVO (AUMENTADO PARA TABLETS Y DISPOSITIVOS TÁCTILES)
 ===================================================== */
 function toggleMenuLateral() {
     const panel = document.getElementById('panel');
@@ -442,6 +442,15 @@ function toggleMenuLateral() {
     } else {
         botonIcono.className = 'fas fa-bars';
     }
+
+    // AUMENTADO PARA OPTIMIZACIÓN TÁCTIL: 
+    // Fuerza a Leaflet a recalcular el tamaño del lienzo de forma asíncrona tras la transición CSS.
+    // Esto previene las zonas grises del mapa no renderizadas en Tablets.
+    setTimeout(() => {
+        if (map) {
+            map.invalidateSize();
+        }
+    }, 300);
 }
 
 /* =====================================================
