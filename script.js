@@ -79,6 +79,11 @@ function cargarPuntosDesdeLaNube() {
             }
         }
         
+        // Verificar si hay nuevas recolecciones para notificar al vecino
+        if (modo === 'vecino') {
+            verificarNotificacionesRecogidos(registros);
+        }
+
         actualizarStats();
         filtrarMarcadores();
 
@@ -108,7 +113,33 @@ function dibujarPuntoEnMapa(puntoData) {
     puntoData.marker = marker;
     puntos.push(puntoData);
     actualizarPopup(puntoData);
-    // Nota: Dejamos que filtrarMarcadores decida si añadirlo al cluster o no
+}
+
+
+/* =====================================================
+   SISTEMA DE NOTIFICACIONES PARA EL VECINO
+===================================================== */
+function verificarNotificacionesRecogidos(registros) {
+    if (!registros) return;
+
+    // Obtener la lista de IDs que ya notificamos en el pasado para no repetir la alerta
+    let notificados = JSON.parse(localStorage.getItem('puntosNotificadosRecogidos')) || [];
+
+    for (let id in registros) {
+        const p = registros[id];
+        
+        // Si el punto está marcado como 'recogido' y aún no le hemos avisado al vecino
+        if (p.estado === 'recogido' && !notificados.includes(id)) {
+            
+            // Lanzar la notificación interactiva
+            alert(`📢 ¡Atención Vecino!\nLa acumulación de residuos reportada en:\n"${p.direccion || 'Zona Urbana Oruro'}" ya ha sido RECOGIDA con éxito por el camión de EMAO. ¡Gracias por tu reporte!`);
+            
+            // Registrar este ID para que no vuelva a molestar
+            notificados.push(id);
+        }
+    }
+    // Guardar el historial actualizado de notificaciones en el navegador
+    localStorage.setItem('puntosNotificadosRecogidos', JSON.stringify(notificados));
 }
 
 
@@ -199,6 +230,8 @@ function limpiarPuntos() {
         }
         cluster.clearLayers();
         puntos = [];
+        // Limpiar también el historial de notificaciones locales al resetear la base de datos
+        localStorage.removeItem('puntosNotificadosRecogidos');
         actualizarStats();
         alert('Base de datos limpia y en cero.');
     })
@@ -345,7 +378,6 @@ function filtrarMarcadores() {
     const filtro = document.getElementById('mapFilter').value;
     
     puntos.forEach(punto => {
-        // CONDICIÓN: Si el punto ya fue recogido, NO se dibuja en el mapa de ninguna forma
         if (punto.estado === 'recogido') return;
 
         if (filtro === 'todos' || (filtro === 'alto' && punto.nivel === 'alto') || (filtro === 'espera' && punto.estado === 'espera')) {
@@ -370,7 +402,7 @@ function actualizarStats() {
     if(document.getElementById('txtHigh')) document.getElementById('txtHigh').innerHTML = alto;
     if(document.getElementById('txtEspera')) document.getElementById('txtEspera').innerHTML = espera; 
     if(document.getElementById('txtCamino')) document.getElementById('txtCamino').innerHTML = camino; 
-    if(document.getElementById('txtRecogido')) document.getElementById('txtRecogido').innerHTML = recogido; // <-- Ahora este número sí crecerá
+    if(document.getElementById('txtRecogido')) document.getElementById('txtRecogido').innerHTML = recogido;
 }
 
 function exportarDatos() {
