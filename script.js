@@ -32,7 +32,7 @@ const LIMITES_ORURO = {
 
 /* =====================================================
    MAPA INICIALIZACIÓN
-===================================================== */
+==================================================== */
 const map = L.map('map').setView(PLAZA_10_FEBRERO_VECINO, 14);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -46,9 +46,13 @@ map.addLayer(cluster);
 establecerPosicionPorRol(PLAZA_10_FEBRERO_VECINO, "🏠 Vecino (Plaza 10 de Febrero)");
 ocultarBotonesAdmin();
 
-// Sincronización inicial automática
+// Sincronización inicial automática de puntos
 cargarPuntosDesdeLaNube();
 setInterval(cargarPuntosDesdeLaNube, 30000);
+
+// Sincronización inicial automática del chat en tiempo real
+cargarMensajes();
+setInterval(cargarMensajes, 2000);
 
 
 /* =====================================================
@@ -152,27 +156,41 @@ async function crearPunto(lat, lng, nivel) {
 
 
 /* =====================================================
-   CAMBIAR ESTADO (ACTUALIZACIÓN EN TIEMPO REAL)
+   CAMBIAR ESTADO / ELIMINAR SI ES RECOGIDO
 ===================================================== */
 function cambiarEstadoEnMemoria(lat, lng, nuevoEstado) {
     const punto = puntos.find(p => p.lat === lat && p.lng === lng);
     if (!punto || !punto.id) return;
 
-    fetch(`${FIREBASE_DB_URL}puntos/${punto.id}.json`, {
-        method: 'PATCH',
-        body: JSON.stringify({ estado: nuevoEstado }),
-        headers: { 'Content-Type': 'application/json' }
-    })
-    .then(() => {
-        console.log(`Punto actualizado a estado: ${nuevoEstado}`);
-        if (routingControl !== null && nuevoEstado === 'recogido') {
-            map.removeControl(routingControl);
-            routingControl = null;
-        }
-        map.closePopup();
-        cargarPuntosDesdeLaNube();
-    })
-    .catch(err => console.error("Error al actualizar en la nube:", err));
+    if (nuevoEstado === 'recogido') {
+        // Eliminar definitivamente si la basura ya fue recolectada
+        fetch(`${FIREBASE_DB_URL}puntos/${punto.id}.json`, {
+            method: 'DELETE'
+        })
+        .then(() => {
+            alert("✅ Basura recogida correctamente");
+            if (routingControl !== null) {
+                map.removeControl(routingControl);
+                routingControl = null;
+            }
+            map.closePopup();
+            cargarPuntosDesdeLaNube();
+        })
+        .catch(err => console.error("Error al eliminar el punto en la nube:", err));
+    } else {
+        // Actualizar estado intermedio (ej. 'camino')
+        fetch(`${FIREBASE_DB_URL}puntos/${punto.id}.json`, {
+            method: 'PATCH',
+            body: JSON.stringify({ estado: nuevoEstado }),
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(() => {
+            console.log(`Punto actualizado a estado: ${nuevoEstado}`);
+            map.closePopup();
+            cargarPuntosDesdeLaNube();
+        })
+        .catch(err => console.error("Error al actualizar en la nube:", err));
+    }
 }
 
 
@@ -271,7 +289,6 @@ function ocultarBotonesAdmin() {
 function activarModoAgregar() {
     alert("Haz clic en cualquier zona de Oruro para reportar acumulación de residuos.");
     
-    // Si está en celular, se cierra automáticamente el menú para dejar ver el mapa con claridad
     if (window.innerWidth <= 768) {
         toggleMenuLateral();
     }
@@ -341,15 +358,6 @@ function filtrarMarcadores() {
     });
 }
 
-function enviarMensaje() {
-    const text = document.getElementById('mensaje').value; if (text.trim() === '') return;
-    const div = document.createElement('div');
-    div.className = modo === 'admin' ? 'message admin-message' : (modo === 'camion' ? 'message camion-message' : 'message');
-    div.innerHTML = `<strong>${modo === 'admin' ? 'Administrador' : (modo === 'camion' ? 'Camión' : 'Vecino Oruro')}</strong><br>${text}`;
-    document.getElementById('messages').prepend(div);
-    document.getElementById('mensaje').value = '';
-}
-
 function actualizarStats() {
     let bajo = 0, medio = 0, alto = 0, espera = 0, camino = 0, recogido = 0;
     puntos.forEach(p => {
@@ -398,4 +406,60 @@ function toggleMenuLateral() {
     } else {
         botonIcono.className = 'fas fa-bars';
     }
+}
+
+/* =====================================================
+   SISTEMA DE CHAT EN TIEMPO REAL CON FIREBASE
+===================================================== */
+function enviarMensaje() {
+    const texto = document.getElementById('mensaje').value.trim();
+    if (!texto) return;
+
+    const mensaje = {
+        usuario: modo === 'admin' ? 'Administrador' : (modo === 'camion' ? 'Camión' : 'Vecino Oruro'),
+        tipo: modo,
+        texto: texto,
+        fecha: new Date().toLocaleString()
+    };
+
+    fetch(`${FIREBASE_DB_URL}mensajes.json`, {
+        method: 'POST',
+        body: JSON.stringify(mensaje),
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(() => {
+        document.getElementById('mensaje').value = '';
+        cargarMensajes(); // Actualización inmediata local tras enviar
+    })
+    .catch(err => console.error("Error al enviar mensaje:", err));
+}
+
+function cargarMensajes() {
+    fetch(`${FIREBASE_DB_URL}mensajes.json`)
+    .then(res => res.json())
+    .then(datos => {
+        const contenedor = document.getElementById('messages');
+        if (!contenedor) return;
+        
+        contenedor.innerHTML = '';
+        if (!datos) return;
+
+        // Renderizar los mensajes del más reciente al más antiguo (.reverse())
+        Object.keys(datos).reverse().forEach(id => {
+            const msg = datos[id];
+            const div = document.createElement('div');
+
+            if (msg.tipo === 'admin') {
+                div.className = 'message admin-message';
+            } else if (msg.tipo === 'camion') {
+                div.className = 'message camion-message';
+            } else {
+                div.className = 'message'; // Vecino
+            }
+
+            div.innerHTML = `<strong>${msg.usuario}</strong><br>${msg.texto}`;
+            contenedor.appendChild(div);
+        });
+    })
+    .catch(err => console.error("Error al cargar mensajes:", err));
 }
