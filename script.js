@@ -32,7 +32,7 @@ const LIMITES_ORURO = {
 
 /* =====================================================
    MAPA INICIALIZACIÓN
-==================================================== */
+===================================================== */
 const map = L.map('map').setView(PLAZA_10_FEBRERO_VECINO, 14);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -108,7 +108,7 @@ function dibujarPuntoEnMapa(puntoData) {
     puntoData.marker = marker;
     puntos.push(puntoData);
     actualizarPopup(puntoData);
-    cluster.addLayer(marker);
+    // Nota: Dejamos que filtrarMarcadores decida si añadirlo al cluster o no
 }
 
 
@@ -156,41 +156,30 @@ async function crearPunto(lat, lng, nivel) {
 
 
 /* =====================================================
-   CAMBIAR ESTADO / ELIMINAR SI ES RECOGIDO
+   CAMBIAR ESTADO (MANTIENE EL PUNTO EN LA NUBE)
 ===================================================== */
 function cambiarEstadoEnMemoria(lat, lng, nuevoEstado) {
     const punto = puntos.find(p => p.lat === lat && p.lng === lng);
     if (!punto || !punto.id) return;
 
-    if (nuevoEstado === 'recogido') {
-        // Eliminar definitivamente si la basura ya fue recolectada
-        fetch(`${FIREBASE_DB_URL}puntos/${punto.id}.json`, {
-            method: 'DELETE'
-        })
-        .then(() => {
-            alert("✅ Basura recogida correctamente");
+    fetch(`${FIREBASE_DB_URL}puntos/${punto.id}.json`, {
+        method: 'PATCH',
+        body: JSON.stringify({ estado: nuevoEstado }),
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(() => {
+        if (nuevoEstado === 'recogido') {
+            alert("✅ Trabajo finalizado. El punto se guardó en el historial.");
             if (routingControl !== null) {
                 map.removeControl(routingControl);
                 routingControl = null;
             }
-            map.closePopup();
-            cargarPuntosDesdeLaNube();
-        })
-        .catch(err => console.error("Error al eliminar el punto en la nube:", err));
-    } else {
-        // Actualizar estado intermedio (ej. 'camino')
-        fetch(`${FIREBASE_DB_URL}puntos/${punto.id}.json`, {
-            method: 'PATCH',
-            body: JSON.stringify({ estado: nuevoEstado }),
-            headers: { 'Content-Type': 'application/json' }
-        })
-        .then(() => {
-            console.log(`Punto actualizado a estado: ${nuevoEstado}`);
-            map.closePopup();
-            cargarPuntosDesdeLaNube();
-        })
-        .catch(err => console.error("Error al actualizar en la nube:", err));
-    }
+        }
+        console.log(`Punto actualizado a estado: ${nuevoEstado}`);
+        map.closePopup();
+        cargarPuntosDesdeLaNube();
+    })
+    .catch(err => console.error("Error al actualizar en la nube:", err));
 }
 
 
@@ -348,10 +337,17 @@ function trazarRutaHaciaPunto(lat, lng) {
     }
 }
 
+/* =====================================================
+   FILTRAR MARCADORES (OCULTA LOS 'RECOGIDOS' DEL MAPA)
+===================================================== */
 function filtrarMarcadores() {
     cluster.clearLayers();
     const filtro = document.getElementById('mapFilter').value;
+    
     puntos.forEach(punto => {
+        // CONDICIÓN: Si el punto ya fue recogido, NO se dibuja en el mapa de ninguna forma
+        if (punto.estado === 'recogido') return;
+
         if (filtro === 'todos' || (filtro === 'alto' && punto.nivel === 'alto') || (filtro === 'espera' && punto.estado === 'espera')) {
             cluster.addLayer(punto.marker);
         }
@@ -374,7 +370,7 @@ function actualizarStats() {
     if(document.getElementById('txtHigh')) document.getElementById('txtHigh').innerHTML = alto;
     if(document.getElementById('txtEspera')) document.getElementById('txtEspera').innerHTML = espera; 
     if(document.getElementById('txtCamino')) document.getElementById('txtCamino').innerHTML = camino; 
-    if(document.getElementById('txtRecogido')) document.getElementById('txtRecogido').innerHTML = recogido;
+    if(document.getElementById('txtRecogido')) document.getElementById('txtRecogido').innerHTML = recogido; // <-- Ahora este número sí crecerá
 }
 
 function exportarDatos() {
@@ -429,7 +425,7 @@ function enviarMensaje() {
     })
     .then(() => {
         document.getElementById('mensaje').value = '';
-        cargarMensajes(); // Actualización inmediata local tras enviar
+        cargarMensajes(); 
     })
     .catch(err => console.error("Error al enviar mensaje:", err));
 }
@@ -444,7 +440,6 @@ function cargarMensajes() {
         contenedor.innerHTML = '';
         if (!datos) return;
 
-        // Renderizar los mensajes del más reciente al más antiguo (.reverse())
         Object.keys(datos).reverse().forEach(id => {
             const msg = datos[id];
             const div = document.createElement('div');
@@ -454,7 +449,7 @@ function cargarMensajes() {
             } else if (msg.tipo === 'camion') {
                 div.className = 'message camion-message';
             } else {
-                div.className = 'message'; // Vecino
+                div.className = 'message'; 
             }
 
             div.innerHTML = `<strong>${msg.usuario}</strong><br>${msg.texto}`;
